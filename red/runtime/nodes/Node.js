@@ -123,8 +123,6 @@ Node.prototype.send = function(msg) {
             node = flows.get(this._wire);
             /* istanbul ignore else */
             if (node) {
-                // DNR: adding origin to msg
-                msg._origin = this.id;
                 node.receive(msg);
             }
             return;
@@ -159,8 +157,6 @@ Node.prototype.send = function(msg) {
                         // for each msg to send eg. [[m1, m2, ...], ...]
                         for (k = 0; k < msgs.length; k++) {
                             var m = msgs[k];
-                            // DNR: adding origin to msg
-                            m._origin = this.id;
                             /* istanbul ignore else */
                             if (!sentMessageId) {
                                 sentMessageId = m._msgid;

@@ -23,7 +23,7 @@ module.exports = {
     deviceId: "1880",
     
     // the tcp port that the Node-RED web server is listening on
-    uiPort: 1880,
+    uiPort: 8811,
 
     // By default, the Node-RED UI accepts connections on all IPv4 interfaces.
     // The following property can be used to listen on a specific interface. For
@@ -55,7 +55,7 @@ module.exports = {
 
     // By default, all user data is stored in the Node-RED install directory. To
     // use a different location, the following property can be used
-    //userDir: '/home/nol/.node-red/',
+    userDir: '/Users/namtrang/.dnr-node-red/',
 
     // Node-RED scans the `nodes` directory in the install directory to find nodes.
     // The following property can be used to specify an additional directory to scan.

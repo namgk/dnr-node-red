@@ -29,6 +29,8 @@ var events = require("../../events");
 var redUtil = require("../../util");
 var deprecated = require("../registry/deprecated");
 
+var dnr = require('../dnr');
+
 var storage = null;
 var settings = null;
 
@@ -78,9 +80,11 @@ function load() {
 }
 
 function setConfig(_config,type,muteLog) {
-    // require('../dnr').parseConfig(_config);
-
     var config = clone(_config);
+
+    var dnrizedConfig = dnr.dnrizeConfig(_config);
+    dnr.redeployConfig(dnrizedConfig);
+
     type = type||"full";
 
     var credentialsChanged = false;

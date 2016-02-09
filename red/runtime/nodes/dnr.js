@@ -1,80 +1,94 @@
-var typeRegistry = require("./registry");
 var clone = require("clone");
-var settings = require('../../../settings.js');
-var redUtil = require("../util");
+var settings;// = require('../settings');
 var clone = require("clone");
+var http = require("follow-redirects").http;
+var https = require("follow-redirects").https;
+var urllib = require("url");
 
+function init(_settings){
+  settings = _settings;
+}
 
-//redUtil.generateId();
-var broker = {
-  "birthPayload": "",
-  "birthQos": "0",
-  "birthRetain": null,
-  "birthTopic": "",
-  "broker": "localhost",
-  "cleansession": true,
-  "clientid": "",
-  "compatmode": true,
-  "credentials": {
-      "password": "",
-      "user": ""
-  },
-  "id": "dnr.randomize",
-  "keepalive": "15",
-  "port": "1883",
-  "type": "mqtt-broker",
-  "usetls": false,
-  "verifyservercert": true,
-  "willPayload": "",
-  "willQos": "0",
-  "willRetain": null,
-  "willTopic": "",
-  "z": ""
-};
+function DnrComm(){
+  return {
+    getBroker: function(){
+      return this.broker;
+    },
+    getMqttIn: function(){
+      return this.mqttIn;
+    },
+    getMqttOut: function(){
+      return this.mqttOut;
+    },
+    broker: {
+      "birthPayload": "",
+      "birthQos": "0",
+      "birthRetain": null,
+      "birthTopic": "",
+      "broker": "localhost",
+      "cleansession": true,
+      "clientid": "",
+      "compatmode": true,
+      "credentials": {
+          "password": "",
+          "user": ""
+      },
+      "id": "dnr.system_node",
+      "keepalive": "15",
+      "port": "1883",
+      "type": "mqtt-broker",
+      "usetls": false,
+      "verifyservercert": true,
+      "willPayload": "",
+      "willQos": "0",
+      "willRetain": null,
+      "willTopic": "",
+      "z": ""
+    },
+    mqttIn: {
+      "broker": "dnr.system_node",
+      "id": "",
+      "name": "",
+      "topic": "",
+      "type": "mqtt in",
+      "wires": [[]],
+      "x": 0,
+      "y": 0,
+      "z": ""
+    },
+    mqttOut: {
+      "broker": "dnr.system_node",
+      "id": "",
+      "name": "",
+      "qos": "",
+      "retain": "",
+      "topic": "",
+      "type": "mqtt out",
+      // "wires": [[]],
+      "x": 0,
+      "y": 0,
+      "z": ""
+    }
+  }
+}
 
-var mqttIn = {
-  "broker": "dnr.randomize",
-  "id": "ec701520.138fe8",
-  "name": "",
-  "topic": "top1",
-  "type": "mqtt in",
-  "wires": [],
-  "x": 134.5,
-  "y": 82,
-  "z": ""
-};
-
-var mqttOut = {
-  "broker": "dnr.randomize",
-  "id": "64c198.ff9b3e68",
-  "name": "",
-  "qos": "",
-  "retain": "",
-  "topic": "top2",
-  "type": "mqtt out",
-  "wires": [],
-  "x": 331.5,
-  "y": 121,
-  "z": ""
-};
-
+//TODO: ignore dnr wires
 function extractReverseWires(config){
   var reverseWires = {};
 
   for (var j = 0; j < config.length; j++){
-    var c = config[j];
+    var node = config[j];
 
-    if (!c.wires)
+    if (!node.wires)
       continue;
 
-    for (var i = 0; i < c.wires.length; i++){
-      if (!reverseWires[c.wires[i]])
-        reverseWires[c.wires[i]] = [];
-
-      if (c.id.indexOf('dnr') != -1)
-        continue;
-
-      reverseWires[c.wires[i]].push(c.id);
+    for (var i = 0; i < node.wires.length; i++){
+      for (var k = 0; k < node.wires[i].length; k++){
+        if (!reverseWires[node.wires[i][k]])
+          reverseWires[node.wires[i][k]] = [];
+      
+        reverseWires[node.wires[i][k]].push(node);
+      }
     }
   }
 
@@ -85,170 +99,182 @@ function extractForwardWires(config){
   var forwardWires = {};
 
   for (var j = 0; j < config.length; j++){
-    var c = config[j];
+    var node = config[j];
 
-    if (!c.wires)
+    if (!node.wires)
       continue;
 
-    if (!forwardWires[c.id])
-      forwardWires[c.id] = [];
 
-    for (var i = 0; i < c.wires.length; i++){
-      var outputI = c.wires[i];//will be an array of sub outputs
+    for (var i = 0; i < node.wires.length; i++){
+      var outputI = node.wires[i];//will be an array of sub outputs
 
       var subOutput = [];
 
       for (var k = 0; k < outputI.length; k++){
-
-        if (outputI[k].indexOf('dnr') != -1)
-          continue;
-
         subOutput.push(outputI[k]);
       }
 
-      forwardWires[c.id].push(subOutput);
+      if (subOutput.length < 0)
+        continue;
+
+      if (!forwardWires[node.id])
+        forwardWires[node.id] = [];
+
+      forwardWires[node.id].push(subOutput);
     }    
   }
 
   return forwardWires;
 }
 
-function parseConfig(config){
-  // var config = clone(config);
-  config.push(clone(broker));
+function generateId(){
+  return (1+Math.random()*4294967295).toString(16);
+}
+
+function makeMqttOut(node, nodeOutput, nodeOutputWire){
+  var newMqttOut = DnrComm().getMqttOut();
+  newMqttOut.id = 'dnr.' + generateId();
+  newMqttOut.x = node.x + 20;
+  newMqttOut.y = node.y + 20;
+  newMqttOut.z = node.z;
+  newMqttOut.topic = node.id + '-' + nodeOutput + '-' + nodeOutputWire;
+
+  node.wires[nodeOutput].push(newMqttOut.id);
+
+  return newMqttOut;
+}
+
+function makeMqttIn(node, nodeInputOutput, nodeInput){
+  var newMqttIn = DnrComm().getMqttIn();;
+  newMqttIn.id = 'dnr.' + generateId();
+  newMqttIn.x = node.x - 20;
+  newMqttIn.y = node.y - 20;
+  newMqttIn.z = node.z;
+  newMqttIn.topic = nodeInput.id + '-' + nodeInputOutput + '-' + node.id;
+
+  newMqttIn.wires[0].push(node.id);
+
+  return newMqttIn;
+}
+
+function dnrizeConfig(_config){
+  var config = clone(_config);
 
   var newMqtts = [];
+  var dnrnodes = {};
+  var reverseWires = extractReverseWires(config);
+  var forwardWires = extractForwardWires(config);
 
   for (var j = 0; j < config.length; j++){
-    var c = config[j];
+    var node = config[j];
+    if (node.constraints && !satisfyConstraints(node.constraints) && Object.keys(node.constraints).length != 0){
+      node.type = 'dnr';
+      dnrnodes[node.id] = 1;
+    }
+  }
+  
+  for (var j = 0; j < config.length; j++){
+    var node = config[j];
 
-    if (!c.hasOwnProperty('constraints') || c.constraints.length === 0)
+    if (!node.hasOwnProperty('constraints') || Object.keys(node.constraints).length == 0)
       continue;
 
-    var cInputs = extractReverseWires(config)[c.id] || [];
-    var cOutputs = extractForwardWires(config)[c.id] || [];
+    if (dnrnodes[node.id])
+      continue;
 
-    console.log('DEBUG: cOutputs \n' + JSON.stringify(cOutputs));
+    var nodeInputs = reverseWires[node.id] || [];
+    var nodeOutputs = forwardWires[node.id] || [[]];
 
-    // return config;
+    for (var i = 0; i < nodeInputs.length; i++){
+      if (dnrnodes[nodeInputs[i].id])
+        continue;
 
-    for (var i = 0; i < cInputs.length; i++){
-      var newMqttIn = clone(mqttIn);
-      newMqttIn.id = 'dnr.' + redUtil.generateId();
-      newMqttIn.x = c.x - 20;
-      newMqttIn.y = c.y - 20;
-      newMqttIn.z = c.z;
-      newMqttIn.topic = cInputs[i] + '-' + c.id;
+      for (var k = 0; k < nodeInputs[i].wires.length; k++){
+        for (var m = 0; m < nodeInputs[i].wires[k].length; m++){
+          if (nodeInputs[i].wires[k][m] !== node.id)
+            continue;
 
-      newMqttIn.wires.push(c.id);
-      newMqtts.push(newMqttIn);
+          var newMqttIn = makeMqttIn(node, k, nodeInputs[i]);
+          newMqtts.push(newMqttIn);
+          
+        }
+      }
     }
 
-    for (var i = 0; i < cOutputs.length; i++){
-      var outputI = cOutputs[i];
+    for (var i = 0; i < nodeOutputs.length; i++){
+      var outputI = nodeOutputs[i];
+
 
       for (var k = 0; k < outputI.length; k++){
-        var newMqttOut = clone(mqttOut);
-        newMqttOut.id = 'dnr.' + redUtil.generateId();
-        newMqttOut.x = c.x + 20;
-        newMqttOut.y = c.y + 20;
-        newMqttOut.z = c.z;
-        newMqttOut.topic = c.id + '-' + i + '-' + outputI[k];
-        
-        c.wires[i].push(newMqttOut.id);
+        if (dnrnodes[outputI[k]])
+          continue;
+
+        var newMqttOut = makeMqttOut(node, i, outputI[k]);
         newMqtts.push(newMqttOut);
       }
     }
   }
 
-  for (var i = 0; i < newMqtts.length; i++){
+  config.push(DnrComm().getBroker());
+
+  for (var i = 0; i < newMqtts.length; i++)
     config.push(newMqtts[i]);
-  }
 
   return config;
 }
 
-function process(nodeConfig){
-	var constraints = nodeConfig.constraints;
-  // TODO: even constraints are satisfied, the node might still want to listen for message from other devices
-  // as well as might also want to send message to other devices
-  
-	if (satisfyConstraints(constraints))
-		return nodeConfig;
+function redeployConfig(dnrizedConfig){
+  // TODO: discover this endpoint or get from settings
+  var nrEndpoint = 'http://localhost:1880/flows';
+  var payload = JSON.stringify(dnrizedConfig);
+  var opts = urllib.parse(nrEndpoint);
+  opts.headers = {
+    'content-type':'application/json', 
+    'content-length': payload.length,
+    'Node-RED-Deployment-Type': 'full'
+  };
+  opts.method = 'POST';
 
-	// TODO: node cannot run here, replace it with a wire in/out node!
-	var nt = typeRegistry.get('dnr');
-  if (!nt) 
-  	return null;
+  var req = ((/^https/.test(nrEndpoint))?https:http).request(opts,function(res) {
+    console.log(res.statusCode);
+    var result = '';
+    res.on('data',function(chunk) {
+        result += chunk;
+    });
+    res.on('end',function() {
+        console.log(result);
+    });
+  });
 
-	var nn;
-  var conf = clone(nodeConfig);
-  delete conf.credentials;
-  for (var p in conf) {
-      if (conf.hasOwnProperty(p)) {
-          mapEnvVarProperties(conf,p);
-      }
-  }
-  try {
-      nn = new nt(conf);
-  }
-  catch (err) {
-      Log.log({
-          level: Log.ERROR,
-          id:conf.id,
-          type: type,
-          msg: err
-      });
-  }
+  req.on('error',function(err) {
+    console.log(err);
+  });
 
-	return nn;
+  if (payload)
+    req.write(payload);
+
+  req.end();
 }
 
 function satisfyConstraints(constraints){
 	// TODO: implement this logic!
-  for (c in constraints){
+  for (var c in constraints){
     if (!constraints.hasOwnProperty(c))
       continue;
 
-    c = constraints[c];
-
-  	if (c.deviceId){
-  		if (c.deviceId === settings.deviceId)
+  	if (constraints[c].deviceId && constraints[c].deviceId === settings.deviceId)
   			return true;
-  	}
-    
   }
 	return false;
 }
 
-// copied and pasted from Flow.js! this block should be refractored into util? 
-var EnvVarPropertyRE = /^\$\((\S+)\)$/;
-
-function mapEnvVarProperties(obj,prop) {
-    if (Buffer.isBuffer(obj[prop])) {
-        return;
-    } else if (Array.isArray(obj[prop])) {
-        for (var i=0;i<obj[prop].length;i++) {
-            mapEnvVarProperties(obj[prop],i);
-        }
-    } else if (typeof obj[prop] === 'string') {
-        var m;
-        if ( (m = EnvVarPropertyRE.exec(obj[prop])) !== null) {
-            if (process.env.hasOwnProperty(m[1])) {
-                obj[prop] = process.env[m[1]];
-            }
-        }
-    } else {
-        for (var p in obj[prop]) {
-            if (obj[prop].hasOwnProperty) {
-                mapEnvVarProperties(obj[prop],p);
-            }
-        }
-    }
-}
-// end copied and pasted
-
 module.exports = {
-	process: process,
-  parseConfig: parseConfig
+  dnrizeConfig: dnrizeConfig,
+  redeployConfig: redeployConfig,
+  DnrComm: DnrComm,
+  extractReverseWires: extractReverseWires,
+  extractForwardWires: extractForwardWires,
+  makeMqttIn: makeMqttIn,
+  makeMqttOut: makeMqttOut,
+  init: init
 }

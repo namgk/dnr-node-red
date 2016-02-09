@@ -22,6 +22,7 @@ var registry = require("./registry");
 var credentials = require("./credentials");
 var flows = require("./flows");
 var context = require("./context");
+var dnr = require("./dnr");
 var Node = require("./Node");
 var log = require("../log");
 
@@ -69,6 +70,7 @@ function init(runtime) {
     settings = runtime.settings;
     credentials.init(runtime.storage);
     flows.init(runtime.settings,runtime.storage);
+    dnr.init(runtime.settings);
     registry.init(runtime);
     context.init(runtime.settings);
 }
